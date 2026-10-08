@@ -4,12 +4,16 @@ const axios = require('axios');
 const http = require('http');
 const https = require('https');
 const { URL } = require('url');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
-const PORT = 8000;
+const PORT = process.env.PORT || 8000;
 
 app.use(cors());
+
+// Serve static frontend files from the Vite build in production
+app.use(express.static(path.join(__dirname, '../dist')));
 
 const N8N_URL = process.env.N8N_URL || 'https://n8n-production-83cd.up.railway.app';
 const parsedN8N = new URL(N8N_URL);
@@ -56,8 +60,10 @@ const BLOCKED_HEADERS = [
 ];
 
 // Manual reverse proxy for HTTP requests - strips iframe-blocking headers
-app.use('/', (req, res) => {
-  const targetUrl = new URL(req.url, N8N_URL);
+app.use('/n8n', (req, res) => {
+  // Strip the /n8n prefix when proxying to the actual N8N instance
+  const targetPath = req.url.replace(/^\/n8n/, '') || '/';
+  const targetUrl = new URL(targetPath, N8N_URL);
   const proto = targetUrl.protocol === 'https:' ? https : http;
 
   const proxyReq = proto.request(targetUrl, {
@@ -95,13 +101,18 @@ const server = http.createServer(app);
 
 // WebSocket proxy: handle 'upgrade' events for n8n push connections
 server.on('upgrade', (req, socket, head) => {
+  if (!req.url.startsWith('/n8n')) {
+    return; // Ignore non-n8n websockets
+  }
+
   console.log(`[WS] Upgrade request for: ${req.url}`);
+  const targetPath = req.url.replace(/^\/n8n/, '') || '/';
 
   // Build the target WebSocket URL (wss:// for https://)
   const wsProto = parsedN8N.protocol === 'https:' ? 'wss:' : 'ws:';
-  const targetWsUrl = `${wsProto}//${parsedN8N.host}${req.url}`;
+  const targetWsUrl = `${wsProto}//${parsedN8N.host}${targetPath}`;
 
-  const targetUrl = new URL(req.url, N8N_URL);
+  const targetUrl = new URL(targetPath, N8N_URL);
   const proto = targetUrl.protocol === 'https:' ? https : http;
 
   const proxyReq = proto.request(targetUrl, {
@@ -150,6 +161,11 @@ server.on('upgrade', (req, socket, head) => {
   });
 
   proxyReq.end();
+});
+
+// Fallback for React Router (SPA) - must be the last route
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
 server.listen(PORT, () => {
