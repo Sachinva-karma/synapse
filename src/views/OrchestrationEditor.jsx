@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -39,6 +39,124 @@ const CrosshairFrame = ({ children, className = "" }) => (
     {children}
   </div>
 );
+
+/* ═══════════════════════════════════════════════════
+   ANIMATED NEURAL GRID
+   ═══════════════════════════════════════════════════ */
+const NeuralGrid = () => {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const mouseRef = useRef({ x: -1000, y: -1000 });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    const particles = [];
+    const PARTICLE_COUNT = 80;
+    const CONNECTION_DIST = 120;
+    const MOUSE_RADIUS = 200;
+
+    const resize = () => {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      width = canvas.width = rect.width * window.devicePixelRatio;
+      height = canvas.height = rect.height * window.devicePixelRatio;
+      canvas.style.width = rect.width + 'px';
+      canvas.style.height = rect.height + 'px';
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const w = canvas.parentElement.getBoundingClientRect().width;
+    const h = canvas.parentElement.getBoundingClientRect().height;
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      particles.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        size: Math.random() * 2 + 1,
+        pulse: Math.random() * Math.PI * 2,
+      });
+    }
+
+    const animate = () => {
+      const rw = canvas.parentElement.getBoundingClientRect().width;
+      const rh = canvas.parentElement.getBoundingClientRect().height;
+      ctx.clearRect(0, 0, rw, rh);
+
+      particles.forEach((p, i) => {
+        p.pulse += 0.02;
+        p.x += p.vx;
+        p.y += p.vy;
+
+        if (p.x < 0 || p.x > rw) p.vx *= -1;
+        if (p.y < 0 || p.y > rh) p.vy *= -1;
+
+        const dx = p.x - mouseRef.current.x;
+        const dy = p.y - mouseRef.current.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < MOUSE_RADIUS) {
+          const force = (MOUSE_RADIUS - dist) / MOUSE_RADIUS * 0.02;
+          p.vx += dx * force;
+          p.vy += dy * force;
+        }
+
+        p.vx *= 0.99;
+        p.vy *= 0.99;
+
+        const alpha = 0.3 + Math.sin(p.pulse) * 0.15;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+        ctx.fill();
+
+        for (let j = i + 1; j < particles.length; j++) {
+          const p2 = particles[j];
+          const cdx = p.x - p2.x;
+          const cdy = p.y - p2.y;
+          const cd = Math.sqrt(cdx * cdx + cdy * cdy);
+          if (cd < CONNECTION_DIST) {
+            const lineAlpha = (1 - cd / CONNECTION_DIST) * 0.08;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = `rgba(0,0,0,${lineAlpha})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      });
+
+      animRef.current = requestAnimationFrame(animate);
+    };
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    const rect = canvasRef.current?.parentElement?.getBoundingClientRect();
+    if (rect) {
+      mouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    mouseRef.current = { x: -1000, y: -1000 };
+  }, []);
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none z-0" onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}>
+      <canvas ref={canvasRef} className="absolute inset-0" />
+    </div>
+  );
+};
 
 /* ═══════════════════════════════════
    CUSTOM NODE COMPONENT
@@ -277,25 +395,31 @@ export default function OrchestrationEditor() {
         </div>
 
         {/* REACT FLOW CANVAS */}
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          nodeTypes={nodeTypes}
-          fitView
-          className="bg-transparent"
-        >
-          {/* Subtle grid background to match website aesthetic */}
-          <Background color="#000000" gap={24} size={1} className="opacity-[0.03]" />
-          <Controls className="!bg-white/90 !backdrop-blur-md !border !border-black/10 !rounded-xl !shadow-xl [&>button]:!border-b-black/10 [&>button:hover]:!bg-black/5 !mb-6 !ml-6" />
-          <MiniMap 
-            nodeColor={(n) => n.data.iconColor ? n.data.iconColor.replace('text-', '') : '#000'}
-            className="!bg-white/90 !backdrop-blur-md !border !border-black/10 !rounded-2xl !shadow-2xl !mb-6 !mr-6"
-            maskColor="rgba(0,0,0,0.05)"
-          />
-        </ReactFlow>
+        <div className="absolute inset-0 z-0">
+          <NeuralGrid />
+        </div>
+        
+        <div className="absolute inset-0 z-10">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            nodeTypes={nodeTypes}
+            fitView
+            className="bg-transparent"
+          >
+            {/* Subtle grid background to match website aesthetic */}
+            <Background color="#000000" gap={24} size={1} className="opacity-[0.03]" />
+            <Controls className="!bg-white/90 !backdrop-blur-md !border !border-black/10 !rounded-xl !shadow-xl [&>button]:!border-b-black/10 [&>button:hover]:!bg-black/5 !mb-6 !ml-6" />
+            <MiniMap 
+              nodeColor={(n) => n.data.iconColor ? n.data.iconColor.replace('text-', '') : '#000'}
+              className="!bg-white/90 !backdrop-blur-md !border !border-black/10 !rounded-2xl !shadow-2xl !mb-6 !mr-6"
+              maskColor="rgba(0,0,0,0.05)"
+            />
+          </ReactFlow>
+        </div>
       </div>
     </div>
   );
