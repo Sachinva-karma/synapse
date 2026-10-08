@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Workflow, Github, AlertTriangle, Eye, Play } from 'lucide-react';
+import { Download, Workflow, GitBranch, AlertTriangle, Eye, Play } from 'lucide-react';
 
 export default function ImportAgent() {
   const [activeTab, setActiveTab] = useState('n8n');
@@ -30,7 +30,7 @@ export default function ImportAgent() {
               activeTab === 'github' ? 'bg-white shadow-sm text-black' : 'text-black/50 hover:text-black'
             }`}
           >
-            <Github size={14} /> GitHub Repo
+            <GitBranch size={14} /> GitHub Repo
           </button>
         </div>
       </div>
