@@ -12,6 +12,7 @@ import CommandCenter from './views/CommandCenter';
 import SettingsPage from './views/SettingsPage'; 
 import NeuralCorePage from './views/NeuralCorePage';
 import LandingPage from './views/LandingPage';
+import ImportAgent from './views/ImportAgent';
 
 // A wrapper for authenticated routes
 function RequireAuth({ children }) {
@@ -46,6 +47,7 @@ function AppContent() {
         <Route path="orchestration" element={null} /> {/* Handled persistently in Layout */}
         <Route path="inbox" element={<MultiModalInbox />} />
         <Route path="command-center" element={<CommandCenter />} />
+        <Route path="import-agent" element={<ImportAgent />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="ai-builder" element={<NeuralCorePage />} />
       </Route>

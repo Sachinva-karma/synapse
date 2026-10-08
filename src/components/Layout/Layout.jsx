@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, Mail, Settings, HeadphonesIcon, Sparkles, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Package, Mail, Settings, HeadphonesIcon, Sparkles, Menu, X, Eye, Download } from 'lucide-react';
 import { useSynapse } from '../../context/SynapseContext';
 import { useAuth } from '../../context/AuthContext';
 import OrchestrationEditor from '../../views/OrchestrationEditor';
@@ -57,9 +57,9 @@ const Layout = () => {
   const onlineCount = Object.values(agentStatuses).filter(a => a.status !== 'offline').length;
 
   const navItems = [
-    { id: 'orchestration', icon: LayoutDashboard, path: '/app/orchestration', label: 'Orchestration' },
+    { id: 'orchestration', icon: Eye, path: '/app/orchestration', label: 'Observatory' },
     { id: 'command-center', icon: Package, path: '/app/command-center', label: 'Command Center' },
-    { id: 'inbox', icon: Mail, path: '/app/inbox', badge: pendingCount > 0 ? pendingCount : null, label: 'Inbox' },
+    { id: 'import', icon: Download, path: '/app/import-agent', label: 'Import Agent' },
     { id: 'ai-builder', icon: Sparkles, path: '/app/ai-builder', label: 'AI Builder' },
     { id: 'settings', icon: Settings, path: '/app/settings', label: 'Settings' },
   ];
