@@ -238,17 +238,54 @@ export default function OrchestrationEditor() {
 
   const onConnect = useCallback((params) => setEdges((eds) => addEdge({ ...params, animated: true, style: { stroke: '#000', strokeWidth: 2 } }, eds)), [setEdges]);
 
+  const [logs, setLogs] = useState([]);
+  
   const handleDeploy = () => {
+    if(isDeploying || nodes.length === 0) return;
     setIsDeploying(true);
-    // Simulate deployment process
-    setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, status: 'active' } })));
-    setTimeout(() => setIsDeploying(false), 2000);
+    setLogs([{ time: new Date().toLocaleTimeString(), msg: 'Initializing Neural Engine v2.0...' }]);
+    
+    // Reset all nodes and edges
+    setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, status: 'idle' } })));
+    setEdges(eds => eds.map(e => ({ ...e, animated: false, style: { ...e.style, stroke: '#000', strokeWidth: 2 } })));
+
+    // Sort nodes left-to-right to simulate execution flow
+    const sortedNodes = [...nodes].sort((a, b) => a.position.x - b.position.x);
+    const steps = sortedNodes.map(n => n.id);
+    let currentStep = 0;
+
+    const interval = setInterval(() => {
+      if (currentStep >= steps.length) {
+        clearInterval(interval);
+        setTimeout(() => {
+          setLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: '✅ Pipeline execution completed successfully.' }]);
+          setIsDeploying(false);
+        }, 500);
+        return;
+      }
+      
+      const nodeId = steps[currentStep];
+      const nodeObj = sortedNodes[currentStep];
+      
+      setLogs(prev => [...prev, { time: new Date().toLocaleTimeString(), msg: `Executing [${nodeObj.data.label}]...` }]);
+
+      setNodes(nds => nds.map(n => 
+        n.id === nodeId ? { ...n, data: { ...n.data, status: 'active' } } : n
+      ));
+
+      setEdges(eds => eds.map(e => 
+        e.source === nodeId ? { ...e, animated: true, style: { ...e.style, stroke: '#10b981', strokeWidth: 3 } } : e
+      ));
+
+      currentStep++;
+    }, 1200); // 1.2s per step
   };
 
   const clearCanvas = () => {
     if(window.confirm('Clear the entire workflow canvas?')) {
       setNodes([]);
       setEdges([]);
+      setLogs([]);
     }
   };
 
@@ -384,14 +421,39 @@ export default function OrchestrationEditor() {
           
           <button 
             onClick={handleDeploy}
-            className={`pointer-events-auto flex items-center gap-3 px-8 py-3.5 rounded-full text-sm font-semibold transition-all duration-300 shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-black/5 ${isDeploying ? 'bg-white text-black/40 cursor-not-allowed' : 'bg-black text-white hover:bg-black/85 hover:-translate-y-1 hover:shadow-[0_16px_40px_-8px_rgba(0,0,0,0.4)]'}`}
+            disabled={isDeploying || nodes.length === 0}
+            className={`pointer-events-auto flex items-center gap-3 px-8 py-3.5 rounded-full text-sm font-semibold transition-all duration-300 shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-black/5 ${isDeploying || nodes.length === 0 ? 'bg-white text-black/40 cursor-not-allowed' : 'bg-black text-white hover:bg-black/85 hover:-translate-y-1 hover:shadow-[0_16px_40px_-8px_rgba(0,0,0,0.4)]'}`}
           >
             {isDeploying ? (
-              <><Clock className="animate-spin" size={18} /> Compiling Neural Graph...</>
+              <><Clock className="animate-spin" size={18} /> Executing...</>
             ) : (
               <><PlayCircle size={18} className="text-emerald-400" /> Execute Pipeline</>
             )}
           </button>
+        </div>
+
+        {/* LOGS TERMINAL OVERLAY */}
+        <div className={`absolute bottom-8 right-8 w-[400px] bg-white/90 backdrop-blur-xl border border-black/10 rounded-2xl shadow-2xl p-5 z-20 pointer-events-none transition-all duration-500 origin-bottom-right ${logs.length > 0 ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+          <div className="flex items-center gap-2 mb-3 border-b border-black/5 pb-3">
+            <Terminal size={16} className="text-black/50" />
+            <h3 className="text-xs font-bold tracking-widest uppercase text-black/50">Execution Console</h3>
+          </div>
+          <div className="font-mono text-[11px] leading-relaxed h-[180px] overflow-y-auto flex flex-col justify-end">
+            <div className="space-y-1">
+              {logs.map((log, i) => (
+                <div key={i} className="flex gap-3">
+                  <span className="text-black/30 shrink-0">[{log.time}]</span>
+                  <span className={log.msg.includes('✅') ? 'text-emerald-600 font-bold' : 'text-black/70'}>{log.msg}</span>
+                </div>
+              ))}
+            </div>
+            {isDeploying && (
+              <div className="flex gap-3 mt-1">
+                <span className="text-black/30 shrink-0">[{new Date().toLocaleTimeString()}]</span>
+                <span className="text-black/70"><span className="animate-pulse">_</span></span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* REACT FLOW CANVAS */}
@@ -410,7 +472,6 @@ export default function OrchestrationEditor() {
             fitView
             className="bg-transparent"
           >
-            {/* Subtle grid background to match website aesthetic */}
             <Background color="#000000" gap={24} size={1} className="opacity-[0.03]" />
             <Controls className="!bg-white/90 !backdrop-blur-md !border !border-black/10 !rounded-xl !shadow-xl [&>button]:!border-b-black/10 [&>button:hover]:!bg-black/5 !mb-6 !ml-6" />
             <MiniMap 
